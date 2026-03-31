@@ -4,3 +4,4 @@ Flask
 python-dotenv
 discord.py
 PyNaCl
+davey
