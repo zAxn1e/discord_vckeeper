@@ -148,11 +148,17 @@ class VoiceKeeperBot(discord.Client):
             await existing.move_to(channel)
             return True, f"Moved to {channel.mention}."
 
+        # A stale voice client can linger after dropped websocket sessions.
+        # Disconnecting it first avoids repeated connect timeout loops.
+        if existing is not None:
+            with contextlib.suppress(Exception):
+                await existing.disconnect(force=False)
+            await asyncio.sleep(0.2)
+
         delay = 2
         for attempt in range(1, CONNECT_RETRY_LIMIT + 1):
             try:
-                # Keep reconnect ownership in watchdog to avoid overlapping reconnect loops.
-                await channel.connect(self_deaf=SELF_DEAF, self_mute=SELF_MUTE, reconnect=False)
+                await channel.connect(self_deaf=SELF_DEAF, self_mute=SELF_MUTE, reconnect=True)
                 return True, f"Connected to {channel.mention}."
             except Exception as err:  # noqa: BLE001
                 logger.warning("Connect attempt %s failed for guild %s: %s", attempt, guild_id, err)
@@ -200,7 +206,7 @@ class VoiceKeeperBot(discord.Client):
             # Stale voice client objects can block clean reconnects (4006/1006 loops).
             if vc and not vc.is_connected():
                 with contextlib.suppress(Exception):
-                    await vc.disconnect(force=True)
+                    await vc.disconnect(force=False)
 
             ok, msg = await self.connect_to_channel(guild_id, channel_id)
             if ok:
